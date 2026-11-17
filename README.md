@@ -6,7 +6,7 @@
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green.svg?style=flat-square&logo=mongodb)](https://www.mongodb.com/)
 [![Python](https://img.shields.io/badge/Python-3.11-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![Scikit-Learn](https://img.shields.io/badge/scikit--learn-1.7.1-orange.svg?style=flat-square&logo=scikitlearn)](https://scikit-learn.org/)
-[![Gemini AI](https://img.shields.io/badge/Gemini%20AI-2.0%20Flash-blueviolet.svg?style=flat-square&logo=google)](https://ai.google.dev/)
+[![Gemini AI](https://img.shields.io/badge/Gemini%20AI-3.8%20Flash-blueviolet.svg?style=flat-square&logo=google)](https://ai.google.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
 ---
@@ -67,7 +67,7 @@ CalmPulse provides a unified, cross-domain stress management portal. Users defin
 
 ### Database & Cloud Integrations
 *   **Database**: Cloud MongoDB Atlas.
-*   **AI Integration**: Google Generative Language API (Gemini 2.0 / 1.5 Flash).
+*   **AI Integration**: Google Generative Language API (Gemini 3.8 Flash).
 
 ---
 

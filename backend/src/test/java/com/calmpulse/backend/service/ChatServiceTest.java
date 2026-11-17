@@ -149,4 +149,56 @@ public class ChatServiceTest {
         assertEquals("Building on our previous exercise, let's try 5-minute journaling.", resp.getResponse());
         verify(restTemplate, times(1)).postForObject(anyString(), any(), eq(Map.class));
     }
+
+    @Test
+    @DisplayName("Gemini 404 Model Not Found returns specific actionable message")
+    void testGemini404ModelNotFound() {
+        ChatService service = new ChatService(restTemplate, "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", "valid-key");
+
+        when(restTemplate.postForObject(anyString(), any(), eq(Map.class)))
+                .thenThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND, "Model not found"));
+
+        ChatRequest req = ChatRequest.builder()
+                .message("I feel exhausted")
+                .userRole("student")
+                .build();
+
+        ChatResponse resp = service.chat(req);
+
+        assertNotNull(resp);
+        assertTrue(resp.getResponse().contains("gemini-3.8-flash"));
+        assertTrue(resp.getResponse().contains("GEMINI_API_URL"));
+    }
+
+    @Test
+    @DisplayName("Gemini 3.8 thinking/thought parts are filtered from the final user response")
+    void testGemini38ThinkingPartsFiltered() {
+        ChatService service = new ChatService(restTemplate, "https://api.example.com", "valid-key");
+
+        Map<String, Object> thoughtPart = Map.of(
+                "thought", true,
+                "text", "Analyzing user burnout symptoms... formulate 3 practical steps."
+        );
+        Map<String, Object> textPart = Map.of(
+                "text", "Here are 3 steps to help manage your burnout: 1. Take a break 2. Hydrate 3. Breathe."
+        );
+
+        Map<String, Object> candidate = Map.of(
+                "content", Map.of(
+                        "parts", List.of(thoughtPart, textPart)
+                )
+        );
+        when(restTemplate.postForObject(anyString(), any(), eq(Map.class))).thenReturn(Map.of("candidates", List.of(candidate)));
+
+        ChatRequest req = ChatRequest.builder()
+                .message("How do I fix burnout?")
+                .userRole("employee")
+                .build();
+
+        ChatResponse resp = service.chat(req);
+
+        assertNotNull(resp);
+        assertFalse(resp.getResponse().contains("Analyzing user burnout symptoms"));
+        assertEquals("Here are 3 steps to help manage your burnout: 1. Take a break 2. Hydrate 3. Breathe.", resp.getResponse());
+    }
 }

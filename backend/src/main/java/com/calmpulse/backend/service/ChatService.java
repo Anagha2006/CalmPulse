@@ -109,10 +109,15 @@ public class ChatService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set(HttpHeaders.USER_AGENT, "CalmPulse-Backend/1.0");
+            if (!geminiApiKey.isEmpty()) {
+                headers.set("x-goog-api-key", geminiApiKey);
+            }
 
             HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(requestPayload, headers);
 
-            String urlWithKey = geminiApiUrl + (geminiApiUrl.contains("?") ? "&key=" : "?key=") + geminiApiKey;
+            String urlWithKey = geminiApiUrl.contains("key=")
+                    ? geminiApiUrl
+                    : geminiApiUrl + (geminiApiUrl.contains("?") ? "&key=" : "?key=") + geminiApiKey;
 
             Map responseMap = restTemplate.postForObject(urlWithKey, httpEntity, Map.class);
             if (responseMap == null) {
@@ -122,7 +127,7 @@ public class ChatService {
                         .build();
             }
 
-            // Extract candidate text
+            // Extract candidate text (supports both standard text parts and models with thinking blocks)
             List candidates = (List) responseMap.get("candidates");
             if (candidates != null && !candidates.isEmpty()) {
                 Map candidate = (Map) candidates.get(0);
@@ -130,10 +135,29 @@ public class ChatService {
                 if (contentMap != null) {
                     List parts = (List) contentMap.get("parts");
                     if (parts != null && !parts.isEmpty()) {
-                        Map partMap = (Map) parts.get(0);
-                        String text = (String) partMap.get("text");
-                        if (text != null && !text.isBlank()) {
-                            return ChatResponse.builder().response(text.trim()).build();
+                        StringBuilder answerBuilder = new StringBuilder();
+                        for (Object partObj : parts) {
+                            if (partObj instanceof Map<?, ?> partMap) {
+                                Object isThought = partMap.get("thought");
+                                if (Boolean.TRUE.equals(isThought)) {
+                                    continue; // Skip internal chain-of-thought blocks
+                                }
+                                Object textObj = partMap.get("text");
+                                if (textObj instanceof String s && !s.isBlank()) {
+                                    answerBuilder.append(s);
+                                }
+                            }
+                        }
+                        String finalText = answerBuilder.toString().trim();
+                        if (!finalText.isEmpty()) {
+                            return ChatResponse.builder().response(finalText).build();
+                        }
+                        // Fallback: if no non-thought text found, check first part text
+                        if (parts.get(0) instanceof Map<?, ?> firstPart) {
+                            Object textObj = firstPart.get("text");
+                            if (textObj instanceof String s && !s.isBlank()) {
+                                return ChatResponse.builder().response(s.trim()).build();
+                            }
                         }
                     }
                 }
@@ -153,6 +177,8 @@ public class ChatService {
                 userFriendlyNotice = "The AI service received an invalid request or key configuration. Please verify your GEMINI_API_KEY in Google AI Studio.";
             } else if (code == 403) {
                 userFriendlyNotice = "Permission denied by Gemini AI. Please check that the API key has access to the Generative Language API.";
+            } else if (code == 404) {
+                userFriendlyNotice = "The requested AI model endpoint is unavailable. Please verify GEMINI_API_URL is configured for gemini-3.8-flash.";
             } else if (code == 429) {
                 userFriendlyNotice = "Pulse Bot is experiencing high volume (rate limit reached). Please wait a few moments and try again.";
             } else {
