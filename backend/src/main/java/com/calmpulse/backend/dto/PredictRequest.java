@@ -12,6 +12,9 @@ public class PredictRequest {
     @JsonProperty("user_id")
     private String userId;
 
+    @JsonProperty("role")
+    private String role;
+
     @JsonProperty("job_role")
     private String jobRole;
 

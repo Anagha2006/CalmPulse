@@ -10,7 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 @Component
@@ -27,8 +27,9 @@ public class MLClient {
     }
 
     public Double predictStressScore(String role, Object data) {
-        String endpoint = mlServiceUrl + "/predict_ml";
-        log.info("Sending prediction request to Python ML Service at: {}", endpoint);
+        String baseUrl = mlServiceUrl.endsWith("/") ? mlServiceUrl.substring(0, mlServiceUrl.length() - 1) : mlServiceUrl;
+        String endpoint = baseUrl + "/predict_ml";
+        log.info("Sending prediction request for role '{}' to Python ML Service at: {}", role, endpoint);
 
         MlPredictRequest requestPayload = MlPredictRequest.builder()
                 .role(role)
@@ -37,17 +38,18 @@ public class MLClient {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(HttpHeaders.USER_AGENT, "CalmPulse-Backend/1.0 (Java/21; SpringBoot)");
 
         HttpEntity<MlPredictRequest> requestEntity = new HttpEntity<>(requestPayload, headers);
 
         int maxRetries = 3;
-        int delayMs = 3000;
+        int delayMs = 2000;
         ResponseEntity<MlPredictResponse> response = null;
         Exception lastException = null;
 
         for (int i = 0; i < maxRetries; i++) {
             try {
-                log.info("Sending prediction request to Python ML Service (Attempt {}/{})", i + 1, maxRetries);
+                log.info("Attempt {}/{} contacting ML service at {}", i + 1, maxRetries, endpoint);
                 response = restTemplate.postForEntity(
                         endpoint,
                         requestEntity,
@@ -55,6 +57,21 @@ public class MLClient {
                 );
                 if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                     break;
+                }
+            } catch (HttpStatusCodeException statusEx) {
+                lastException = statusEx;
+                String responseBody = statusEx.getResponseBodyAsString();
+                log.warn("Attempt {} failed with HTTP {}: {}. Response body: {}",
+                        i + 1, statusEx.getStatusCode(), statusEx.getMessage(), responseBody);
+                if (statusEx.getStatusCode().value() == 400) {
+                    // Bad request shouldn't be retried
+                    throw new RuntimeException("Invalid prediction input: " + responseBody, statusEx);
+                }
+                try {
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Prediction interrupted", ie);
                 }
             } catch (Exception e) {
                 lastException = e;
@@ -75,6 +92,10 @@ public class MLClient {
         }
 
         Double score = response.getBody().getStressScore();
+        if (score == null) {
+            throw new RuntimeException("ML microservice returned null stress_score");
+        }
+
         log.info("Successfully received stress score from ML service: {}", score);
         return score;
     }

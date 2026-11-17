@@ -34,6 +34,9 @@ public class StressHistory {
     @Field("prediction_type")
     private String predictionType;
 
+    @Field("role")
+    private String role;
+
     @Field("createdAt")
     private String createdAt;
 
